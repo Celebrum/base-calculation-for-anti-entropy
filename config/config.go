@@ -1,6 +1,3 @@
-// Copyright (c) HashiCorp, Inc.
-// SPDX-License-Identifier: MPL-2.0
-
 package config
 
 import (
@@ -122,6 +119,15 @@ type Config struct {
 	// default to os.ReadFile. This is intended for use when embedding Consul
 	// Template in another application.
 	ReaderFunc Reader `mapstructure:"-" json:"-"`
+
+	// AntiEntropy is the configuration for anti-entropy principles.
+	AntiEntropy *AntiEntropyConfig `mapstructure:"anti_entropy"`
+
+	// SeQUenCE is the configuration for SeQUenCE.
+	SeQUenCE *SeQUenCEConfig `mapstructure:"sequence"`
+
+	// Panel is the configuration for the Panel library.
+	Panel *PanelConfig `mapstructure:"panel"`
 }
 
 // Reader is an interface that is implemented by os.OpenFile. The
@@ -201,6 +207,18 @@ func (c *Config) Copy() *Config {
 
 	o.RendererFunc = c.RendererFunc
 	o.ReaderFunc = c.ReaderFunc
+
+	if c.AntiEntropy != nil {
+		o.AntiEntropy = c.AntiEntropy.Copy()
+	}
+
+	if c.SeQUenCE != nil {
+		o.SeQUenCE = c.SeQUenCE.Copy()
+	}
+
+	if c.Panel != nil {
+		o.Panel = c.Panel.Copy()
+	}
 
 	return &o
 }
@@ -302,6 +320,18 @@ func (c *Config) Merge(o *Config) *Config {
 		r.ReaderFunc = o.ReaderFunc
 	}
 
+	if o.AntiEntropy != nil {
+		r.AntiEntropy = r.AntiEntropy.Merge(o.AntiEntropy)
+	}
+
+	if o.SeQUenCE != nil {
+		r.SeQUenCE = r.SeQUenCE.Merge(o.SeQUenCE)
+	}
+
+	if o.Panel != nil {
+		r.Panel = r.Panel.Merge(o.Panel)
+	}
+
 	return r
 }
 
@@ -341,6 +371,7 @@ func Parse(s string) (*Config, error) {
 		"vault.ssl",
 		"vault.transport",
 		"wait",
+		"panel",
 	})
 
 	// FlattenFlatten keys belonging to the templates. We cannot do this above
@@ -501,6 +532,9 @@ func (c *Config) GoString() string {
 		"Once:%#v, "+
 		"BlockQueryWaitTime:%#v, "+
 		"ErrOnFailedLookup:%#v"+
+		"AntiEntropy:%#v, "+
+		"SeQUenCE:%#v"+
+		"Panel:%#v"+
 		"}",
 		c.Consul,
 		c.Dedup,
@@ -520,6 +554,9 @@ func (c *Config) GoString() string {
 		c.Once,
 		TimeDurationGoString(c.BlockQueryWaitTime),
 		c.ErrOnFailedLookup,
+		c.AntiEntropy,
+		c.SeQUenCE,
+		c.Panel,
 	)
 }
 
@@ -564,6 +601,9 @@ func DefaultConfig() *Config {
 		Templates:     DefaultTemplateConfigs(),
 		Vault:         DefaultVaultConfig(),
 		Wait:          DefaultWaitConfig(),
+		AntiEntropy:   DefaultAntiEntropyConfig(),
+		SeQUenCE:      DefaultSeQUenCEConfig(),
+		Panel:         DefaultPanelConfig(),
 	}
 }
 
@@ -670,6 +710,21 @@ func (c *Config) Finalize() {
 	if c.ReaderFunc == nil {
 		c.ReaderFunc = os.ReadFile
 	}
+
+	if c.AntiEntropy == nil {
+		c.AntiEntropy = DefaultAntiEntropyConfig()
+	}
+	c.AntiEntropy.Finalize()
+
+	if c.SeQUenCE == nil {
+		c.SeQUenCE = DefaultSeQUenCEConfig()
+	}
+	c.SeQUenCE.Finalize()
+
+	if c.Panel == nil {
+		c.Panel = DefaultPanelConfig()
+	}
+	c.Panel.Finalize()
 }
 
 func stringFromEnv(list []string, def string) *string {
@@ -756,4 +811,178 @@ func flattenKeys(m map[string]interface{}, keys []string) {
 	}
 
 	flatten(m, "")
+}
+
+// AntiEntropyConfig defines the configuration options for anti-entropy principles.
+type AntiEntropyConfig struct {
+	Enabled *bool `mapstructure:"enabled"`
+}
+
+// SeQUenCEConfig defines the configuration options for SeQUenCE.
+type SeQUenCEConfig struct {
+	Enabled *bool `mapstructure:"enabled"`
+}
+
+// PanelConfig defines the configuration options for the Panel library.
+type PanelConfig struct {
+	Enabled *bool `mapstructure:"enabled"`
+}
+
+// DefaultAntiEntropyConfig returns a configuration that is populated with the
+// default values for anti-entropy principles.
+func DefaultAntiEntropyConfig() *AntiEntropyConfig {
+	return &AntiEntropyConfig{
+		Enabled: Bool(false),
+	}
+}
+
+// DefaultSeQUenCEConfig returns a configuration that is populated with the
+// default values for SeQUenCE.
+func DefaultSeQUenCEConfig() *SeQUenCEConfig {
+	return &SeQUenCEConfig{
+		Enabled: Bool(false),
+	}
+}
+
+// DefaultPanelConfig returns a configuration that is populated with the
+// default values for the Panel library.
+func DefaultPanelConfig() *PanelConfig {
+	return &PanelConfig{
+		Enabled: Bool(false),
+	}
+}
+
+// Copy returns a deep copy of this configuration.
+func (c *AntiEntropyConfig) Copy() *AntiEntropyConfig {
+	if c == nil {
+		return nil
+	}
+
+	var o AntiEntropyConfig
+
+	o.Enabled = c.Enabled
+
+	return &o
+}
+
+// Copy returns a deep copy of this configuration.
+func (c *SeQUenCEConfig) Copy() *SeQUenCEConfig {
+	if c == nil {
+		return nil
+	}
+
+	var o SeQUenCEConfig
+
+	o.Enabled = c.Enabled
+
+	return &o
+}
+
+// Copy returns a deep copy of this configuration.
+func (c *PanelConfig) Copy() *PanelConfig {
+	if c == nil {
+		return nil
+	}
+
+	var o PanelConfig
+
+	o.Enabled = c.Enabled
+
+	return &o
+}
+
+// Merge combines all values in this configuration with the values in the other
+// configuration, with values in the other configuration taking precedence.
+// Maps and slices are merged, most other values are overwritten. Complex
+// structs define their own merge functionality.
+func (c *AntiEntropyConfig) Merge(o *AntiEntropyConfig) *AntiEntropyConfig {
+	if c == nil {
+		if o == nil {
+			return nil
+		}
+		return o.Copy()
+	}
+
+	if o == nil {
+		return c.Copy()
+	}
+
+	r := c.Copy()
+
+	if o.Enabled != nil {
+		r.Enabled = o.Enabled
+	}
+
+	return r
+}
+
+// Merge combines all values in this configuration with the values in the other
+// configuration, with values in the other configuration taking precedence.
+// Maps and slices are merged, most other values are overwritten. Complex
+// structs define their own merge functionality.
+func (c *SeQUenCEConfig) Merge(o *SeQUenCEConfig) *SeQUenCEConfig {
+	if c == nil {
+		if o == nil {
+			return nil
+		}
+		return o.Copy()
+	}
+
+	if o == nil {
+		return c.Copy()
+	}
+
+	r := c.Copy()
+
+	if o.Enabled != nil {
+		r.Enabled = o.Enabled
+	}
+
+	return r
+}
+
+// Merge combines all values in this configuration with the values in the other
+// configuration, with values in the other configuration taking precedence.
+// Maps and slices are merged, most other values are overwritten. Complex
+// structs define their own merge functionality.
+func (c *PanelConfig) Merge(o *PanelConfig) *PanelConfig {
+	if c == nil {
+		if o == nil {
+			return nil
+		}
+		return o.Copy()
+	}
+
+	if o == nil {
+		return c.Copy()
+	}
+
+	r := c.Copy()
+
+	if o.Enabled != nil {
+		r.Enabled = o.Enabled
+	}
+
+	return r
+}
+
+// Finalize ensures there no nil pointers.
+func (c *AntiEntropyConfig) Finalize() {
+	if c.Enabled == nil {
+		c.Enabled = Bool(false)
+	}
+}
+
+// Finalize ensures there no nil pointers.
+func (c *SeQUenCEConfig) Finalize() {
+	if c.Enabled == nil {
+		c.Enabled = Bool(false)
+	}
+}
+
+// Finalize ensures there no nil pointers.
+func (c *PanelConfig) Finalize() {
+	if c.Enabled == nil {
+		c.Enabled = Bool(false)
+	}
 }
